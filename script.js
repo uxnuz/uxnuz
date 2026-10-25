@@ -211,8 +211,77 @@
     red: "#ff2d2d",
     yellow: "#ffdd00",
     green: "#19c23e",
-    fireline: "#ff8a00",
   };
+
+  function drawMuzzleFlash(ctx, x, y, s) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.fillStyle = "#ffffff";
+    ctx.strokeStyle = "#000000";
+    ctx.lineCap = "round";
+
+    const spikes = 6;
+    const inner = s * 0.2;
+    const outer = s * 0.5;
+    ctx.lineWidth = Math.max(2, s * 0.1);
+    for (let i = 0; i < spikes; i++) {
+      const ang = (i / spikes) * Math.PI * 2;
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(ang) * inner, Math.sin(ang) * inner);
+      ctx.lineTo(Math.cos(ang) * outer, Math.sin(ang) * outer);
+      ctx.stroke();
+    }
+
+    ctx.beginPath();
+    ctx.arc(0, 0, s * 0.18, 0, Math.PI * 2);
+    ctx.lineWidth = Math.max(2, s * 0.09);
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // high-visibility straight line for "who is shooting whom": thick black
+  // outline under a white line, a muzzle-flash burst at the firing point,
+  // and an arrowhead at the target.
+  function drawFireLine(ctx, points, s) {
+    if (!points || points.length < 2) {
+      if (points && points.length === 1) drawMuzzleFlash(ctx, points[0].x, points[0].y, s);
+      return;
+    }
+    const p0 = points[0];
+    const pN = points[points.length - 1];
+
+    ctx.save();
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
+
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, points[0].y);
+    for (let i = 1; i < points.length; i++) ctx.lineTo(points[i].x, points[i].y);
+    ctx.strokeStyle = "#000000";
+    ctx.lineWidth = Math.max(4, s * 0.28);
+    ctx.stroke();
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = Math.max(2, s * 0.14);
+    ctx.stroke();
+
+    drawMuzzleFlash(ctx, p0.x, p0.y, s);
+
+    const angle = Math.atan2(pN.y - points[points.length - 2].y, pN.x - points[points.length - 2].x);
+    const headLen = s * 0.6;
+    ctx.beginPath();
+    ctx.moveTo(pN.x, pN.y);
+    ctx.lineTo(pN.x - headLen * Math.cos(angle - Math.PI / 7), pN.y - headLen * Math.sin(angle - Math.PI / 7));
+    ctx.lineTo(pN.x - headLen * Math.cos(angle + Math.PI / 7), pN.y - headLen * Math.sin(angle + Math.PI / 7));
+    ctx.closePath();
+    ctx.fillStyle = "#ffffff";
+    ctx.strokeStyle = "#000000";
+    ctx.lineWidth = Math.max(2, s * 0.1);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.restore();
+  }
 
   const TEAM_COLORS = {
     1: { fill: "#ffdd00", text: "#1a1a1a" },
@@ -335,7 +404,7 @@
     } else if (type === "path-free") {
       drawPath(ctx, freehandPreviewPoints(cx, cy, s), s, "dashed", "blue");
     } else if (type === "fireline") {
-      drawPath(ctx, [{ x: cx - s * 0.35, y: cy + s * 0.3 }, { x: cx + s * 0.35, y: cy - s * 0.3 }], s, "solid", "fireline");
+      drawFireLine(ctx, [{ x: cx - s * 0.35, y: cy + s * 0.3 }, { x: cx + s * 0.35, y: cy - s * 0.3 }], s);
     } else if (type === "select") {
       ctx.save();
       ctx.strokeStyle = "#e7e9ee";
@@ -562,13 +631,13 @@
     markers.forEach((m) => {
       if (m.type === "flare") drawFlare(targetCtx, m.x, m.y, s, m.rotation);
       else if (m.type === "path") drawPath(targetCtx, m.points, s, m.style, m.color);
-      else if (m.type === "fireline") drawPath(targetCtx, m.points, s, "solid", "fireline");
+      else if (m.type === "fireline") drawFireLine(targetCtx, m.points, s);
       else if (ICON_DRAW[m.type]) ICON_DRAW[m.type](targetCtx, m.x, m.y, s);
     });
     if (includeDrafts) {
       if (flareDraft) drawFlare(targetCtx, flareDraft.x, flareDraft.y, s, flareDraft.angle);
       if (lineDraft) {
-        if (lineDraft.tool === "fireline") drawPath(targetCtx, lineDraft.points, s, "solid", "fireline");
+        if (lineDraft.tool === "fireline") drawFireLine(targetCtx, lineDraft.points, s);
         else drawPath(targetCtx, lineDraft.points, s, lineDraft.style, lineDraft.color);
       }
     }

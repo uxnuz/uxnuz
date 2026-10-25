@@ -175,11 +175,13 @@ html, body {
 }
 
 .tool-subrow-4 {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
   gap: 4px;
 }
 
 .tool-subrow-4 .tool-btn-small {
-  padding: 4px 2px;
+  padding: 5px 2px;
 }
 
 .tool-btn-small {
