@@ -1,6 +1,22 @@
 (() => {
   "use strict";
 
+  // ---------- shared drawing helpers ----------
+
+  function roundedRectPath(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+  }
+
   // ---------- icon drawing (shared by sidebar previews and canvas markers) ----------
 
   function drawSmoke(ctx, x, y, s) {
@@ -28,7 +44,7 @@
   function drawGrenade(ctx, x, y, s) {
     ctx.save();
     ctx.translate(x, y);
-    ctx.fillStyle = "#4a5a33";
+    ctx.fillStyle = "#6f9a1b";
     ctx.strokeStyle = "#1c2314";
     ctx.lineWidth = Math.max(1, s * 0.08);
 
@@ -52,7 +68,7 @@
     ctx.fillRect(-s * 0.1, -s * 0.62, s * 0.2, s * 0.22);
     ctx.beginPath();
     ctx.arc(s * 0.18, -s * 0.58, s * 0.16, 0, Math.PI * 2);
-    ctx.strokeStyle = "#8a8a8a";
+    ctx.strokeStyle = "#a8a8a8";
     ctx.lineWidth = Math.max(1, s * 0.07);
     ctx.stroke();
 
@@ -85,12 +101,42 @@
     ctx.restore();
   }
 
-  function drawCover(ctx, x, y, s, rotation) {
+  function drawVehicle(ctx, x, y, s) {
+    ctx.save();
+    ctx.translate(x, y);
+    const w = s * 0.56, h = s * 0.9;
+
+    ctx.fillStyle = "#ffcc00";
+    ctx.strokeStyle = "#1a1a1a";
+    ctx.lineWidth = Math.max(1, s * 0.07);
+    roundedRectPath(ctx, -w / 2, -h / 2, w, h, s * 0.16);
+    ctx.fill();
+    ctx.stroke();
+
+    // windshield / cabin
+    ctx.fillStyle = "#2b2b2b";
+    roundedRectPath(ctx, -w * 0.32, -h * 0.14, w * 0.64, h * 0.3, s * 0.05);
+    ctx.fill();
+
+    // wheels
+    ctx.fillStyle = "#111";
+    const wheelW = s * 0.12, wheelH = s * 0.22;
+    [
+      [-w / 2 - wheelW * 0.35, -h * 0.32],
+      [w / 2 - wheelW * 0.65, -h * 0.32],
+      [-w / 2 - wheelW * 0.35, h * 0.1],
+      [w / 2 - wheelW * 0.65, h * 0.1],
+    ].forEach(([wx, wy]) => ctx.fillRect(wx, wy, wheelW, wheelH));
+
+    ctx.restore();
+  }
+
+  function drawFlare(ctx, x, y, s, rotation) {
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(rotation || 0);
-    ctx.fillStyle = "#b08a52";
-    ctx.strokeStyle = "#4a3620";
+    ctx.fillStyle = "#ff2e17";
+    ctx.strokeStyle = "#5c0a02";
     ctx.lineWidth = Math.max(1, s * 0.09);
 
     const r = s * 0.6;
@@ -102,22 +148,83 @@
     ctx.fill();
     ctx.stroke();
 
-    // hatch to indicate solid cover
-    ctx.strokeStyle = "rgba(74, 54, 32, 0.6)";
-    ctx.lineWidth = Math.max(1, s * 0.05);
+    // exclamation mark
+    ctx.fillStyle = "#fff6e0";
+    ctx.fillRect(-s * 0.06, -r * 0.3, s * 0.12, r * 0.55);
     ctx.beginPath();
-    ctx.moveTo(0, -r * 0.35);
-    ctx.lineTo(0, r * 0.5);
+    ctx.arc(0, r * 0.4, s * 0.08, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+  }
+
+  function drawRock(ctx, x, y, s) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.fillStyle = "#8d8378";
+    ctx.strokeStyle = "#3f3a33";
+    ctx.lineWidth = Math.max(1, s * 0.08);
+
+    const pts = [
+      [0, -s * 0.5], [s * 0.38, -s * 0.3], [s * 0.48, s * 0.12],
+      [s * 0.2, s * 0.48], [-s * 0.22, s * 0.46], [-s * 0.46, s * 0.08],
+      [-s * 0.34, -s * 0.32],
+    ];
+    ctx.beginPath();
+    ctx.moveTo(pts[0][0], pts[0][1]);
+    pts.slice(1).forEach(([px, py]) => ctx.lineTo(px, py));
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.strokeStyle = "rgba(63, 58, 51, 0.5)";
+    ctx.lineWidth = Math.max(1, s * 0.04);
+    ctx.beginPath();
+    ctx.moveTo(-s * 0.1, -s * 0.2);
+    ctx.lineTo(s * 0.15, s * 0.1);
+    ctx.moveTo(s * 0.05, -s * 0.3);
+    ctx.lineTo(-s * 0.05, s * 0.2);
     ctx.stroke();
 
     ctx.restore();
   }
 
-  function drawPath(ctx, points, s, style) {
+  function drawTree(ctx, x, y, s) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.fillStyle = "#2f6b2f";
+    ctx.strokeStyle = "#1a3d1a";
+    ctx.lineWidth = Math.max(1, s * 0.07);
+
+    ctx.beginPath();
+    ctx.arc(0, 0, s * 0.52, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = "#3f8a3f";
+    ctx.beginPath();
+    ctx.arc(-s * 0.12, -s * 0.12, s * 0.22, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(s * 0.16, s * 0.1, s * 0.18, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+  }
+
+  const PATH_COLORS = {
+    blue: "#1f7aff",
+    red: "#ff2d2d",
+    yellow: "#ffdd00",
+    green: "#19c23e",
+  };
+
+  function drawPath(ctx, points, s, style, color) {
+    const strokeColor = PATH_COLORS[color] || PATH_COLORS.blue;
     if (!points || points.length < 2) {
       if (points && points.length === 1) {
         ctx.save();
-        ctx.fillStyle = "#4da3ff";
+        ctx.fillStyle = strokeColor;
         ctx.beginPath();
         ctx.arc(points[0].x, points[0].y, s * 0.18, 0, Math.PI * 2);
         ctx.fill();
@@ -126,8 +233,8 @@
       return;
     }
     ctx.save();
-    ctx.strokeStyle = "#4da3ff";
-    ctx.lineWidth = Math.max(2, s * 0.14);
+    ctx.strokeStyle = strokeColor;
+    ctx.lineWidth = Math.max(2, s * 0.15);
     ctx.lineJoin = "round";
     ctx.lineCap = "round";
     if (style === "solid") ctx.setLineDash([]);
@@ -142,7 +249,7 @@
     ctx.setLineDash([]);
 
     // start dot
-    ctx.fillStyle = "#4da3ff";
+    ctx.fillStyle = strokeColor;
     ctx.beginPath();
     ctx.arc(points[0].x, points[0].y, s * 0.16, 0, Math.PI * 2);
     ctx.fill();
@@ -180,7 +287,14 @@
     return pts;
   }
 
-  const ICON_DRAW = { smoke: drawSmoke, grenade: drawGrenade, enemy: drawEnemy };
+  const ICON_DRAW = {
+    smoke: drawSmoke,
+    grenade: drawGrenade,
+    enemy: drawEnemy,
+    vehicle: drawVehicle,
+    rock: drawRock,
+    tree: drawTree,
+  };
 
   // ---------- sidebar icon previews ----------
 
@@ -189,11 +303,11 @@
     const cx = c.width / 2, cy = c.height / 2, s = c.width * 0.8;
     const type = c.dataset.icon;
     if (ICON_DRAW[type]) ICON_DRAW[type](ctx, cx, cy, s);
-    else if (type === "cover") drawCover(ctx, cx, cy, s, 0);
+    else if (type === "flare") drawFlare(ctx, cx, cy, s, 0);
     else if (type === "path-straight") {
-      drawPath(ctx, [{ x: cx - s * 0.35, y: cy + s * 0.3 }, { x: cx + s * 0.35, y: cy - s * 0.3 }], s, "dashed");
+      drawPath(ctx, [{ x: cx - s * 0.35, y: cy + s * 0.3 }, { x: cx + s * 0.35, y: cy - s * 0.3 }], s, "dashed", "blue");
     } else if (type === "path-free") {
-      drawPath(ctx, freehandPreviewPoints(cx, cy, s), s, "dashed");
+      drawPath(ctx, freehandPreviewPoints(cx, cy, s), s, "dashed", "blue");
     } else if (type === "select") {
       ctx.save();
       ctx.strokeStyle = "#e7e9ee";
@@ -217,26 +331,38 @@
 
   const canvas = document.getElementById("mapCanvas");
   const ctx = canvas.getContext("2d");
+  const canvasWrap = document.getElementById("canvasWrap");
   const emptyState = document.getElementById("emptyState");
   const exportBtn = document.getElementById("exportBtn");
   const hint = document.getElementById("hint");
   const pathStyleSelect = document.getElementById("pathStyleSelect");
+  const pathColorSelect = document.getElementById("pathColorSelect");
   const mapInput = document.getElementById("mapInput");
 
   let mapImage = null;
-  let markers = []; // {id, type, x, y, rotation?, points?, style?}
+  let markers = []; // {id, type, x, y, rotation?, points?, style?, color?}
   let currentTool = "select";
   let nextId = 1;
 
-  let coverDraft = null; // {x, y, angle}
-  let lineDraft = null;  // {tool: 'path-straight'|'path-free', points: [{x,y}], style}
+  let flareDraft = null; // {x, y, angle}
+  let lineDraft = null;  // {tool: 'path-straight'|'path-free', points: [{x,y}], style, color}
+
+  // pan / zoom view transform (visual only; marker coordinates stay in canvas pixel space)
+  let viewScale = 1;
+  let viewX = 0;
+  let viewY = 0;
+
+  const POINT_TOOLS = ["smoke", "grenade", "enemy", "vehicle", "rock", "tree"];
 
   const HINTS = {
     select: "마커를 클릭하면 삭제됩니다.",
     smoke: "지도를 클릭해 연막탄 위치를 표시하세요.",
     grenade: "지도를 클릭해 투척 지점을 표시하세요.",
     enemy: "지도를 클릭해 적 위치를 표시하세요.",
-    cover: "클릭 후 드래그해 엄폐물 방향을 지정하세요.",
+    vehicle: "지도를 클릭해 차량 위치를 표시하세요.",
+    rock: "지도를 클릭해 바위 위치를 표시하세요.",
+    tree: "지도를 클릭해 나무 위치를 표시하세요.",
+    flare: "클릭 후 드래그해 신호 방향을 지정하세요.",
     "path-straight": "클릭한 채로 드래그해서 직선 이동 동선을 그리세요.",
     "path-free": "클릭한 채로 드래그해서 자유 곡선 이동 동선을 그리세요.",
   };
@@ -247,20 +373,75 @@
 
   function setTool(tool) {
     currentTool = tool;
-    coverDraft = null;
+    flareDraft = null;
     lineDraft = null;
     document.querySelectorAll(".tool-btn").forEach((b) => {
       b.classList.toggle("active", b.dataset.tool === tool);
     });
     canvas.classList.toggle("tool-select", tool === "select");
-    hint.textContent = mapImage
-      ? HINTS[tool]
-      : "지도를 먼저 불러와 주세요. (Ctrl+V로 클립보드 이미지 붙여넣기 가능)";
+    hint.textContent = mapImage ? HINTS[tool] : "지도를 먼저 불러와 주세요.";
     redraw();
   }
 
   document.querySelectorAll(".tool-btn").forEach((btn) => {
     btn.addEventListener("click", () => setTool(btn.dataset.tool));
+  });
+
+  // ---------- view transform (zoom / pan) ----------
+
+  function applyViewTransform() {
+    canvas.style.transform = `translate(${viewX}px, ${viewY}px) scale(${viewScale})`;
+  }
+
+  function resetViewTransform() {
+    viewScale = 1;
+    viewX = 0;
+    viewY = 0;
+    applyViewTransform();
+  }
+
+  canvasWrap.addEventListener(
+    "wheel",
+    (e) => {
+      if (!mapImage) return;
+      e.preventDefault();
+      const wrapRect = canvasWrap.getBoundingClientRect();
+      const mx = e.clientX - wrapRect.left;
+      const my = e.clientY - wrapRect.top;
+      const factor = e.deltaY < 0 ? 1.12 : 1 / 1.12;
+      const newScale = Math.min(8, Math.max(0.3, viewScale * factor));
+
+      const localX = (mx - viewX) / viewScale;
+      const localY = (my - viewY) / viewScale;
+      viewX = mx - localX * newScale;
+      viewY = my - localY * newScale;
+      viewScale = newScale;
+      applyViewTransform();
+    },
+    { passive: false }
+  );
+
+  canvasWrap.addEventListener("contextmenu", (e) => e.preventDefault());
+
+  let panState = null;
+
+  canvasWrap.addEventListener("pointerdown", (e) => {
+    if (e.button === 2 && mapImage) {
+      panState = { startX: e.clientX, startY: e.clientY, viewX, viewY };
+      canvasWrap.setPointerCapture(e.pointerId);
+    }
+  });
+
+  canvasWrap.addEventListener("pointermove", (e) => {
+    if (panState) {
+      viewX = panState.viewX + (e.clientX - panState.startX);
+      viewY = panState.viewY + (e.clientY - panState.startY);
+      applyViewTransform();
+    }
+  });
+
+  window.addEventListener("pointerup", () => {
+    panState = null;
   });
 
   // ---------- image loading (file picker + clipboard paste) ----------
@@ -282,6 +463,7 @@
         canvas.height = Math.round(img.naturalHeight * scale);
         emptyState.style.display = "none";
         exportBtn.disabled = false;
+        resetViewTransform();
         setTool("select");
         redraw();
       };
@@ -320,17 +502,17 @@
 
     const s = markerSize();
     markers.forEach((m) => {
-      if (m.type === "cover") drawCover(ctx, m.x, m.y, s, m.rotation);
-      else if (m.type === "path") drawPath(ctx, m.points, s, m.style);
+      if (m.type === "flare") drawFlare(ctx, m.x, m.y, s, m.rotation);
+      else if (m.type === "path") drawPath(ctx, m.points, s, m.style, m.color);
       else if (ICON_DRAW[m.type]) ICON_DRAW[m.type](ctx, m.x, m.y, s);
     });
 
-    if (coverDraft) {
-      drawCover(ctx, coverDraft.x, coverDraft.y, s, coverDraft.angle);
+    if (flareDraft) {
+      drawFlare(ctx, flareDraft.x, flareDraft.y, s, flareDraft.angle);
     }
 
     if (lineDraft) {
-      drawPath(ctx, lineDraft.points, s, lineDraft.style);
+      drawPath(ctx, lineDraft.points, s, lineDraft.style, lineDraft.color);
     }
   }
 
@@ -374,12 +556,13 @@
     return -1;
   }
 
-  // ---------- interaction ----------
+  // ---------- drawing-tool interaction ----------
 
   const LINE_TOOLS = ["path-straight", "path-free"];
   const MIN_FREE_SEGMENT = 3; // px in canvas space, keeps freehand point count sane
 
   canvas.addEventListener("pointerdown", (e) => {
+    if (e.button !== 0) return; // right/middle click reserved for panning
     if (!mapImage) return;
     const p = getPos(e);
 
@@ -392,21 +575,26 @@
       return;
     }
 
-    if (currentTool === "cover") {
-      coverDraft = { x: p.x, y: p.y, angle: 0 };
+    if (currentTool === "flare") {
+      flareDraft = { x: p.x, y: p.y, angle: 0 };
       canvas.setPointerCapture(e.pointerId);
       redraw();
       return;
     }
 
     if (LINE_TOOLS.includes(currentTool)) {
-      lineDraft = { tool: currentTool, points: [p], style: pathStyleSelect.value };
+      lineDraft = {
+        tool: currentTool,
+        points: [p],
+        style: pathStyleSelect.value,
+        color: pathColorSelect.value,
+      };
       canvas.setPointerCapture(e.pointerId);
       redraw();
       return;
     }
 
-    if (["smoke", "grenade", "enemy"].includes(currentTool)) {
+    if (POINT_TOOLS.includes(currentTool)) {
       markers.push({ id: nextId++, type: currentTool, x: p.x, y: p.y });
       redraw();
     }
@@ -416,11 +604,11 @@
     if (!mapImage) return;
     const p = getPos(e);
 
-    if (currentTool === "cover" && coverDraft) {
-      const dx = p.x - coverDraft.x;
-      const dy = p.y - coverDraft.y;
+    if (currentTool === "flare" && flareDraft) {
+      const dx = p.x - flareDraft.x;
+      const dy = p.y - flareDraft.y;
       if (Math.hypot(dx, dy) > 3) {
-        coverDraft.angle = Math.atan2(dy, dx) + Math.PI / 2;
+        flareDraft.angle = Math.atan2(dy, dx) + Math.PI / 2;
       }
       redraw();
       return;
@@ -439,16 +627,22 @@
 
   function finishLineDraft() {
     if (lineDraft && lineDraft.points.length >= 2) {
-      markers.push({ id: nextId++, type: "path", points: lineDraft.points, style: lineDraft.style });
+      markers.push({
+        id: nextId++,
+        type: "path",
+        points: lineDraft.points,
+        style: lineDraft.style,
+        color: lineDraft.color,
+      });
     }
     lineDraft = null;
     redraw();
   }
 
   window.addEventListener("pointerup", () => {
-    if (coverDraft) {
-      markers.push({ id: nextId++, type: "cover", x: coverDraft.x, y: coverDraft.y, rotation: coverDraft.angle });
-      coverDraft = null;
+    if (flareDraft) {
+      markers.push({ id: nextId++, type: "flare", x: flareDraft.x, y: flareDraft.y, rotation: flareDraft.angle });
+      flareDraft = null;
       redraw();
     }
     if (lineDraft) {
@@ -456,26 +650,32 @@
     }
   });
 
-  window.addEventListener("keydown", (e) => {
-    if (e.key !== "Escape") return;
-    if (coverDraft || lineDraft) {
-      coverDraft = null;
-      lineDraft = null;
-      redraw();
-    }
-  });
-
   // ---------- undo / clear ----------
 
-  document.getElementById("undoBtn").addEventListener("click", () => {
+  function undo() {
     markers.pop();
     redraw();
-  });
+  }
+
+  document.getElementById("undoBtn").addEventListener("click", undo);
 
   document.getElementById("clearBtn").addEventListener("click", () => {
     if (!markers.length) return;
     if (confirm("모든 표시를 지울까요?")) {
       markers = [];
+      redraw();
+    }
+  });
+
+  window.addEventListener("keydown", (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
+      e.preventDefault();
+      undo();
+      return;
+    }
+    if (e.key === "Escape" && (flareDraft || lineDraft)) {
+      flareDraft = null;
+      lineDraft = null;
       redraw();
     }
   });
@@ -490,5 +690,6 @@
     link.click();
   });
 
+  applyViewTransform();
   setTool("select");
 })();

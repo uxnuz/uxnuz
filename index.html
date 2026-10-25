@@ -32,9 +32,15 @@
           <span>투척 지점</span>
         </button>
         <div class="tool-group">
-          <div class="tool-group-header">
-            <span>이동 동선</span>
-            <select id="pathStyleSelect" class="style-select">
+          <div class="tool-group-title">이동 동선</div>
+          <div class="tool-group-selects">
+            <select id="pathColorSelect" class="style-select" title="색상">
+              <option value="blue" selected>파랑</option>
+              <option value="red">빨강</option>
+              <option value="yellow">노랑</option>
+              <option value="green">초록</option>
+            </select>
+            <select id="pathStyleSelect" class="style-select" title="선 종류">
               <option value="dashed" selected>점선</option>
               <option value="solid">실선</option>
             </select>
@@ -54,10 +60,27 @@
           <canvas class="tool-icon" width="32" height="32" data-icon="enemy"></canvas>
           <span>적 위치</span>
         </button>
-        <button class="tool-btn" data-tool="cover" title="엄폐물">
-          <canvas class="tool-icon" width="32" height="32" data-icon="cover"></canvas>
-          <span>엄폐물</span>
+        <button class="tool-btn" data-tool="vehicle" title="차량">
+          <canvas class="tool-icon" width="32" height="32" data-icon="vehicle"></canvas>
+          <span>차량</span>
         </button>
+        <div class="tool-group">
+          <div class="tool-group-title">엄폐물</div>
+          <div class="tool-subrow tool-subrow-3">
+            <button class="tool-btn tool-btn-small" data-tool="flare" title="긴급 엄폐 신호탄 (긴엄신)">
+              <canvas class="tool-icon" width="26" height="26" data-icon="flare"></canvas>
+              <span>긴엄신</span>
+            </button>
+            <button class="tool-btn tool-btn-small" data-tool="rock" title="바위">
+              <canvas class="tool-icon" width="26" height="26" data-icon="rock"></canvas>
+              <span>바위</span>
+            </button>
+            <button class="tool-btn tool-btn-small" data-tool="tree" title="나무">
+              <canvas class="tool-icon" width="26" height="26" data-icon="tree"></canvas>
+              <span>나무</span>
+            </button>
+          </div>
+        </div>
       </div>
 
       <h2>편집</h2>
@@ -72,7 +95,8 @@
         <button id="clearBtn" class="btn btn-danger">전체 지우기</button>
       </div>
 
-      <div class="hint" id="hint">지도를 먼저 불러와 주세요. (Ctrl+V로 클립보드 이미지 붙여넣기 가능)</div>
+      <div class="hint" id="hint">지도를 먼저 불러와 주세요.</div>
+      <div class="hint-small">Ctrl+V 이미지 붙여넣기 · Ctrl+Z 실행취소<br>스크롤 확대/축소 · 우클릭 드래그 이동</div>
     </aside>
 
     <main class="canvas-area">

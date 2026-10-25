@@ -144,25 +144,34 @@ html, body {
   padding: 8px 10px;
 }
 
-.tool-group-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+.tool-group-title {
   font-size: 13px;
 }
 
+.tool-group-selects {
+  display: flex;
+  gap: 4px;
+}
+
 .style-select {
+  flex: 1;
+  min-width: 0;
   background: #252a35;
   color: var(--text);
   border: 1px solid var(--panel-border);
   border-radius: 5px;
   font-size: 11px;
-  padding: 3px 4px;
+  padding: 3px 2px;
 }
 
 .tool-subrow {
   display: flex;
   gap: 6px;
+}
+
+.tool-subrow-3 .tool-btn-small {
+  font-size: 10px;
+  padding: 5px 2px;
 }
 
 .tool-btn-small {
@@ -189,9 +198,17 @@ html, body {
   line-height: 1.5;
 }
 
+.hint-small {
+  margin-top: 10px;
+  font-size: 11px;
+  color: var(--text-dim);
+  line-height: 1.5;
+  opacity: 0.8;
+}
+
 .canvas-area {
   flex: 1;
-  overflow: auto;
+  overflow: hidden;
   display: flex;
   align-items: flex-start;
   justify-content: center;
@@ -212,6 +229,8 @@ html, body {
   border: 1px solid var(--panel-border);
   border-radius: 4px;
   cursor: crosshair;
+  transform-origin: 0 0;
+  touch-action: none;
 }
 
 #mapCanvas.tool-select { cursor: pointer; }
