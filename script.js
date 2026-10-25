@@ -25,7 +25,7 @@
 
   function drawSmoke(ctx, x, y, s) {
     ctx.save();
-    ctx.globalAlpha = 0.9;
+    ctx.globalAlpha = ctx.globalAlpha * 0.9;
     ctx.fillStyle = "#b9bec6";
     ctx.strokeStyle = "#6e737c";
     ctx.lineWidth = Math.max(1, s * 0.06);
@@ -240,9 +240,58 @@
     ctx.restore();
   }
 
+  // jagged debris burst for the impact point - deliberately more irregular
+  // than the muzzle flash so the two ends read as distinct effects.
+  function drawImpactBurst(ctx, x, y, s) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.lineCap = "round";
+
+    const frags = [
+      [-2.6, 0.5], [-2.15, 0.72], [-1.6, 0.4], [-1.05, 0.62],
+      [-0.5, 0.78], [0.0, 0.48], [0.5, 0.66], [1.0, 0.42],
+      [1.5, 0.74], [2.0, 0.5], [2.5, 0.64], [3.0, 0.38],
+    ];
+    frags.forEach(([ang, len]) => {
+      const x2 = Math.cos(ang) * s * len;
+      const y2 = Math.sin(ang) * s * len;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(x2, y2);
+      ctx.strokeStyle = "#000000";
+      ctx.lineWidth = Math.max(2, s * 0.09);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(x2, y2);
+      ctx.strokeStyle = "#ffd77a";
+      ctx.lineWidth = Math.max(1, s * 0.045);
+      ctx.stroke();
+
+      // fragment chip at the tip
+      ctx.beginPath();
+      ctx.arc(x2, y2, s * 0.05, 0, Math.PI * 2);
+      ctx.fillStyle = "#ffffff";
+      ctx.strokeStyle = "#000000";
+      ctx.lineWidth = Math.max(1, s * 0.03);
+      ctx.fill();
+      ctx.stroke();
+    });
+
+    ctx.beginPath();
+    ctx.arc(0, 0, s * 0.16, 0, Math.PI * 2);
+    ctx.fillStyle = "#ffffff";
+    ctx.strokeStyle = "#000000";
+    ctx.lineWidth = Math.max(2, s * 0.09);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.restore();
+  }
+
   // high-visibility straight line for "who is shooting whom": thick black
   // outline under a white line, a muzzle-flash burst at the firing point,
-  // and an arrowhead at the target.
+  // and a debris burst at the impact point.
   function drawFireLine(ctx, points, s) {
     if (!points || points.length < 2) {
       if (points && points.length === 1) drawMuzzleFlash(ctx, points[0].x, points[0].y, s);
@@ -266,19 +315,7 @@
     ctx.stroke();
 
     drawMuzzleFlash(ctx, p0.x, p0.y, s);
-
-    const angle = Math.atan2(pN.y - points[points.length - 2].y, pN.x - points[points.length - 2].x);
-    const headLen = s * 0.6;
-    ctx.beginPath();
-    ctx.moveTo(pN.x, pN.y);
-    ctx.lineTo(pN.x - headLen * Math.cos(angle - Math.PI / 7), pN.y - headLen * Math.sin(angle - Math.PI / 7));
-    ctx.lineTo(pN.x - headLen * Math.cos(angle + Math.PI / 7), pN.y - headLen * Math.sin(angle + Math.PI / 7));
-    ctx.closePath();
-    ctx.fillStyle = "#ffffff";
-    ctx.strokeStyle = "#000000";
-    ctx.lineWidth = Math.max(2, s * 0.1);
-    ctx.fill();
-    ctx.stroke();
+    drawImpactBurst(ctx, pN.x, pN.y, s);
 
     ctx.restore();
   }
@@ -435,6 +472,8 @@
   const pathStyleSelect = document.getElementById("pathStyleSelect");
   const pathColorSelect = document.getElementById("pathColorSelect");
   const mapInput = document.getElementById("mapInput");
+  const opacitySlider = document.getElementById("opacitySlider");
+  const opacityValue = document.getElementById("opacityValue");
 
   let mapImage = null;
   let worldWidth = 0;
@@ -442,6 +481,13 @@
   let markers = []; // {id, type, x, y, rotation?, points?, style?, color?}
   let currentTool = "select";
   let nextId = 1;
+  let markerOpacity = 1;
+
+  opacitySlider.addEventListener("input", () => {
+    markerOpacity = Number(opacitySlider.value) / 100;
+    opacityValue.textContent = `${opacitySlider.value}%`;
+    redraw();
+  });
 
   let flareDraft = null; // {x, y, angle}
   let lineDraft = null;  // {tool: 'path-straight'|'path-free', points: [{x,y}], style, color}
@@ -626,8 +672,12 @@
   // identity transform, as the PNG export does).
 
   function drawSceneContent(targetCtx, includeDrafts) {
+    targetCtx.globalAlpha = 1;
     targetCtx.drawImage(mapImage, 0, 0, worldWidth, worldHeight);
     const s = markerSize();
+
+    targetCtx.save();
+    targetCtx.globalAlpha = markerOpacity;
     markers.forEach((m) => {
       if (m.type === "flare") drawFlare(targetCtx, m.x, m.y, s, m.rotation);
       else if (m.type === "path") drawPath(targetCtx, m.points, s, m.style, m.color);
@@ -641,6 +691,7 @@
         else drawPath(targetCtx, lineDraft.points, s, lineDraft.style, lineDraft.color);
       }
     }
+    targetCtx.restore();
   }
 
   function redraw() {

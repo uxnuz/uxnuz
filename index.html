@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>피드백</title>
-<link rel="stylesheet" href="style.css?v=1">
+<link rel="stylesheet" href="style.css?v=2">
 </head>
 <body>
 <div class="app">
@@ -116,6 +116,14 @@
         <button id="clearBtn" class="btn btn-danger">전체 지우기</button>
       </div>
 
+      <div class="opacity-control">
+        <label for="opacitySlider">아이콘/이펙트 투명도</label>
+        <div class="opacity-row">
+          <input type="range" id="opacitySlider" min="0" max="100" value="100">
+          <span id="opacityValue">100%</span>
+        </div>
+      </div>
+
       <div class="hint" id="hint">지도를 먼저 불러와 주세요.</div>
       <div class="hint-small">Ctrl+V 이미지 붙여넣기 · Ctrl+Z 실행취소<br>스크롤 확대/축소 · 우클릭 드래그 이동</div>
     </aside>
@@ -131,6 +139,6 @@
   </div>
 </div>
 
-<script src="script.js?v=1"></script>
+<script src="script.js?v=2"></script>
 </body>
 </html>
