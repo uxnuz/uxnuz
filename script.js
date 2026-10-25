@@ -211,7 +211,35 @@
     red: "#ff2d2d",
     yellow: "#ffdd00",
     green: "#19c23e",
+    fireline: "#ff8a00",
   };
+
+  const TEAM_COLORS = {
+    1: { fill: "#ffdd00", text: "#1a1a1a" },
+    2: { fill: "#ff2d2d", text: "#ffffff" },
+    3: { fill: "#1f7aff", text: "#ffffff" },
+    4: { fill: "#19c23e", text: "#ffffff" },
+  };
+
+  function drawTeammate(ctx, x, y, s, num) {
+    const c = TEAM_COLORS[num];
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.fillStyle = c.fill;
+    ctx.strokeStyle = "#1a1a1a";
+    ctx.lineWidth = Math.max(1, s * 0.09);
+    ctx.beginPath();
+    ctx.arc(0, 0, s * 0.46, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = c.text;
+    ctx.font = `bold ${Math.round(s * 0.58)}px "Segoe UI", sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(String(num), 0, s * 0.02);
+    ctx.restore();
+  }
 
   function drawPath(ctx, points, s, style, color) {
     const strokeColor = PATH_COLORS[color] || PATH_COLORS.blue;
@@ -288,6 +316,10 @@
     vehicle: drawVehicle,
     rock: drawRock,
     tree: drawTree,
+    team1: (ctx, x, y, s) => drawTeammate(ctx, x, y, s, 1),
+    team2: (ctx, x, y, s) => drawTeammate(ctx, x, y, s, 2),
+    team3: (ctx, x, y, s) => drawTeammate(ctx, x, y, s, 3),
+    team4: (ctx, x, y, s) => drawTeammate(ctx, x, y, s, 4),
   };
 
   // ---------- sidebar icon previews ----------
@@ -302,6 +334,8 @@
       drawPath(ctx, [{ x: cx - s * 0.35, y: cy + s * 0.3 }, { x: cx + s * 0.35, y: cy - s * 0.3 }], s, "dashed", "blue");
     } else if (type === "path-free") {
       drawPath(ctx, freehandPreviewPoints(cx, cy, s), s, "dashed", "blue");
+    } else if (type === "fireline") {
+      drawPath(ctx, [{ x: cx - s * 0.35, y: cy + s * 0.3 }, { x: cx + s * 0.35, y: cy - s * 0.3 }], s, "solid", "fireline");
     } else if (type === "select") {
       ctx.save();
       ctx.strokeStyle = "#e7e9ee";
@@ -350,7 +384,10 @@
   const MIN_SCALE = 0.1;
   const MAX_SCALE = 12;
 
-  const POINT_TOOLS = ["smoke", "grenade", "enemy", "vehicle", "rock", "tree"];
+  const POINT_TOOLS = [
+    "smoke", "grenade", "enemy", "vehicle", "rock", "tree",
+    "team1", "team2", "team3", "team4",
+  ];
 
   const HINTS = {
     select: "마커를 클릭하면 삭제됩니다.",
@@ -361,8 +398,13 @@
     rock: "지도를 클릭해 바위 위치를 표시하세요.",
     tree: "지도를 클릭해 나무 위치를 표시하세요.",
     flare: "클릭 후 드래그해 신호 방향을 지정하세요.",
+    team1: "지도를 클릭해 팀원 1(노랑) 위치를 표시하세요.",
+    team2: "지도를 클릭해 팀원 2(빨강) 위치를 표시하세요.",
+    team3: "지도를 클릭해 팀원 3(파랑) 위치를 표시하세요.",
+    team4: "지도를 클릭해 팀원 4(초록) 위치를 표시하세요.",
     "path-straight": "클릭한 채로 드래그해서 직선 이동 동선을 그리세요.",
     "path-free": "클릭한 채로 드래그해서 자유 곡선 이동 동선을 그리세요.",
+    fireline: "클릭한 채로 드래그해서 사격선을 그리세요.",
   };
 
   function markerSize() {
@@ -520,11 +562,15 @@
     markers.forEach((m) => {
       if (m.type === "flare") drawFlare(targetCtx, m.x, m.y, s, m.rotation);
       else if (m.type === "path") drawPath(targetCtx, m.points, s, m.style, m.color);
+      else if (m.type === "fireline") drawPath(targetCtx, m.points, s, "solid", "fireline");
       else if (ICON_DRAW[m.type]) ICON_DRAW[m.type](targetCtx, m.x, m.y, s);
     });
     if (includeDrafts) {
       if (flareDraft) drawFlare(targetCtx, flareDraft.x, flareDraft.y, s, flareDraft.angle);
-      if (lineDraft) drawPath(targetCtx, lineDraft.points, s, lineDraft.style, lineDraft.color);
+      if (lineDraft) {
+        if (lineDraft.tool === "fireline") drawPath(targetCtx, lineDraft.points, s, "solid", "fireline");
+        else drawPath(targetCtx, lineDraft.points, s, lineDraft.style, lineDraft.color);
+      }
     }
   }
 
@@ -566,7 +612,7 @@
     const s = markerSize();
     for (let i = markers.length - 1; i >= 0; i--) {
       const m = markers[i];
-      if (m.type === "path") {
+      if (m.type === "path" || m.type === "fireline") {
         for (let j = 0; j < m.points.length - 1; j++) {
           if (distToSegment(p, m.points[j], m.points[j + 1]) < s * 0.5) return i;
         }
@@ -580,7 +626,8 @@
 
   // ---------- drawing-tool interaction ----------
 
-  const LINE_TOOLS = ["path-straight", "path-free"];
+  const LINE_TOOLS = ["path-straight", "path-free", "fireline"];
+  const STRAIGHT_LINE_TOOLS = ["path-straight", "fireline"];
   const MIN_FREE_SEGMENT = 3; // world px, keeps freehand point count sane
 
   canvas.addEventListener("pointerdown", (e) => {
@@ -605,12 +652,10 @@
     }
 
     if (LINE_TOOLS.includes(currentTool)) {
-      lineDraft = {
-        tool: currentTool,
-        points: [p],
-        style: pathStyleSelect.value,
-        color: pathColorSelect.value,
-      };
+      lineDraft =
+        currentTool === "fireline"
+          ? { tool: currentTool, points: [p] }
+          : { tool: currentTool, points: [p], style: pathStyleSelect.value, color: pathColorSelect.value };
       canvas.setPointerCapture(e.pointerId);
       redraw();
       return;
@@ -637,7 +682,7 @@
     }
 
     if (lineDraft) {
-      if (lineDraft.tool === "path-straight") {
+      if (STRAIGHT_LINE_TOOLS.includes(lineDraft.tool)) {
         lineDraft.points = [lineDraft.points[0], p];
       } else {
         const last = lineDraft.points[lineDraft.points.length - 1];
@@ -649,13 +694,17 @@
 
   function finishLineDraft() {
     if (lineDraft && lineDraft.points.length >= 2) {
-      markers.push({
-        id: nextId++,
-        type: "path",
-        points: lineDraft.points,
-        style: lineDraft.style,
-        color: lineDraft.color,
-      });
+      if (lineDraft.tool === "fireline") {
+        markers.push({ id: nextId++, type: "fireline", points: lineDraft.points });
+      } else {
+        markers.push({
+          id: nextId++,
+          type: "path",
+          points: lineDraft.points,
+          style: lineDraft.style,
+          color: lineDraft.color,
+        });
+      }
     }
     lineDraft = null;
     redraw();
