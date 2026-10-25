@@ -172,6 +172,10 @@ html, body {
   padding: 24px;
 }
 
+.modal-overlay[hidden] {
+  display: none;
+}
+
 .modal-panel {
   background: var(--panel);
   border: 1px solid var(--panel-border);
