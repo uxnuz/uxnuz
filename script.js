@@ -113,9 +113,9 @@
     ctx.restore();
   }
 
-  function drawPath(ctx, points, s, finished) {
-    if (points.length < 2) {
-      if (points.length === 1) {
+  function drawPath(ctx, points, s, style) {
+    if (!points || points.length < 2) {
+      if (points && points.length === 1) {
         ctx.save();
         ctx.fillStyle = "#4da3ff";
         ctx.beginPath();
@@ -128,7 +128,11 @@
     ctx.save();
     ctx.strokeStyle = "#4da3ff";
     ctx.lineWidth = Math.max(2, s * 0.14);
-    ctx.setLineDash([s * 0.35, s * 0.3]);
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
+    if (style === "solid") ctx.setLineDash([]);
+    else ctx.setLineDash([s * 0.35, s * 0.3]);
+
     ctx.beginPath();
     ctx.moveTo(points[0].x, points[0].y);
     for (let i = 1; i < points.length; i++) {
@@ -163,6 +167,19 @@
     ctx.restore();
   }
 
+  function freehandPreviewPoints(cx, cy, s) {
+    const pts = [];
+    const steps = 10;
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps;
+      pts.push({
+        x: cx - s * 0.38 + t * s * 0.76,
+        y: cy + Math.sin(t * Math.PI * 1.6) * s * 0.22,
+      });
+    }
+    return pts;
+  }
+
   const ICON_DRAW = { smoke: drawSmoke, grenade: drawGrenade, enemy: drawEnemy };
 
   // ---------- sidebar icon previews ----------
@@ -173,8 +190,11 @@
     const type = c.dataset.icon;
     if (ICON_DRAW[type]) ICON_DRAW[type](ctx, cx, cy, s);
     else if (type === "cover") drawCover(ctx, cx, cy, s, 0);
-    else if (type === "path") drawPath(ctx, [{ x: cx - s * 0.35, y: cy + s * 0.3 }, { x: cx + s * 0.35, y: cy - s * 0.3 }], s);
-    else if (type === "select") {
+    else if (type === "path-straight") {
+      drawPath(ctx, [{ x: cx - s * 0.35, y: cy + s * 0.3 }, { x: cx + s * 0.35, y: cy - s * 0.3 }], s, "dashed");
+    } else if (type === "path-free") {
+      drawPath(ctx, freehandPreviewPoints(cx, cy, s), s, "dashed");
+    } else if (type === "select") {
       ctx.save();
       ctx.strokeStyle = "#e7e9ee";
       ctx.lineWidth = 2;
@@ -197,20 +217,19 @@
 
   const canvas = document.getElementById("mapCanvas");
   const ctx = canvas.getContext("2d");
-  const canvasWrap = document.getElementById("canvasWrap");
   const emptyState = document.getElementById("emptyState");
   const exportBtn = document.getElementById("exportBtn");
   const hint = document.getElementById("hint");
-  const pathToolbar = document.getElementById("pathToolbar");
+  const pathStyleSelect = document.getElementById("pathStyleSelect");
+  const mapInput = document.getElementById("mapInput");
 
   let mapImage = null;
-  let markers = []; // {id, type, x, y, rotation?, points?}
+  let markers = []; // {id, type, x, y, rotation?, points?, style?}
   let currentTool = "select";
   let nextId = 1;
 
   let coverDraft = null; // {x, y, angle}
-  let pathDraft = null;  // {points: [{x,y}]}
-  let hoverPoint = null;
+  let lineDraft = null;  // {tool: 'path-straight'|'path-free', points: [{x,y}], style}
 
   const HINTS = {
     select: "마커를 클릭하면 삭제됩니다.",
@@ -218,7 +237,8 @@
     grenade: "지도를 클릭해 투척 지점을 표시하세요.",
     enemy: "지도를 클릭해 적 위치를 표시하세요.",
     cover: "클릭 후 드래그해 엄폐물 방향을 지정하세요.",
-    path: "클릭으로 경로 점을 추가하세요.",
+    "path-straight": "클릭한 채로 드래그해서 직선 이동 동선을 그리세요.",
+    "path-free": "클릭한 채로 드래그해서 자유 곡선 이동 동선을 그리세요.",
   };
 
   function markerSize() {
@@ -227,14 +247,15 @@
 
   function setTool(tool) {
     currentTool = tool;
-    pathDraft = null;
     coverDraft = null;
-    pathToolbar.hidden = tool !== "path";
+    lineDraft = null;
     document.querySelectorAll(".tool-btn").forEach((b) => {
       b.classList.toggle("active", b.dataset.tool === tool);
     });
     canvas.classList.toggle("tool-select", tool === "select");
-    hint.textContent = mapImage ? HINTS[tool] : "지도를 먼저 불러와 주세요.";
+    hint.textContent = mapImage
+      ? HINTS[tool]
+      : "지도를 먼저 불러와 주세요. (Ctrl+V로 클립보드 이미지 붙여넣기 가능)";
     redraw();
   }
 
@@ -242,14 +263,11 @@
     btn.addEventListener("click", () => setTool(btn.dataset.tool));
   });
 
-  // ---------- image loading ----------
+  // ---------- image loading (file picker + clipboard paste) ----------
 
-  const mapInput = document.getElementById("mapInput");
-  mapInput.addEventListener("change", (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
+  function loadMapImageFile(file) {
+    if (!file || !file.type.startsWith("image/")) return;
     if (markers.length && !confirm("새 지도를 불러오면 현재 표시가 모두 사라집니다. 계속할까요?")) {
-      mapInput.value = "";
       return;
     }
     const reader = new FileReader();
@@ -270,7 +288,27 @@
       img.src = ev.target.result;
     };
     reader.readAsDataURL(file);
+  }
+
+  mapInput.addEventListener("change", (e) => {
+    const file = e.target.files[0];
+    if (file) loadMapImageFile(file);
     mapInput.value = "";
+  });
+
+  window.addEventListener("paste", (e) => {
+    const items = e.clipboardData && e.clipboardData.items;
+    if (!items) return;
+    for (const item of items) {
+      if (item.kind === "file" && item.type.startsWith("image/")) {
+        const file = item.getAsFile();
+        if (file) {
+          e.preventDefault();
+          loadMapImageFile(file);
+        }
+        break;
+      }
+    }
   });
 
   // ---------- rendering ----------
@@ -283,7 +321,7 @@
     const s = markerSize();
     markers.forEach((m) => {
       if (m.type === "cover") drawCover(ctx, m.x, m.y, s, m.rotation);
-      else if (m.type === "path") drawPath(ctx, m.points, s, true);
+      else if (m.type === "path") drawPath(ctx, m.points, s, m.style);
       else if (ICON_DRAW[m.type]) ICON_DRAW[m.type](ctx, m.x, m.y, s);
     });
 
@@ -291,17 +329,8 @@
       drawCover(ctx, coverDraft.x, coverDraft.y, s, coverDraft.angle);
     }
 
-    if (pathDraft) {
-      const pts = hoverPoint ? [...pathDraft.points, hoverPoint] : pathDraft.points;
-      drawPath(ctx, pts, s, false);
-      pathDraft.points.forEach((p) => {
-        ctx.save();
-        ctx.fillStyle = "#4da3ff";
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, s * 0.14, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.restore();
-      });
+    if (lineDraft) {
+      drawPath(ctx, lineDraft.points, s, lineDraft.style);
     }
   }
 
@@ -347,7 +376,8 @@
 
   // ---------- interaction ----------
 
-  let pointerDownInfo = null;
+  const LINE_TOOLS = ["path-straight", "path-free"];
+  const MIN_FREE_SEGMENT = 3; // px in canvas space, keeps freehand point count sane
 
   canvas.addEventListener("pointerdown", (e) => {
     if (!mapImage) return;
@@ -364,14 +394,14 @@
 
     if (currentTool === "cover") {
       coverDraft = { x: p.x, y: p.y, angle: 0 };
-      pointerDownInfo = p;
+      canvas.setPointerCapture(e.pointerId);
       redraw();
       return;
     }
 
-    if (currentTool === "path") {
-      if (!pathDraft) pathDraft = { points: [] };
-      pathDraft.points.push(p);
+    if (LINE_TOOLS.includes(currentTool)) {
+      lineDraft = { tool: currentTool, points: [p], style: pathStyleSelect.value };
+      canvas.setPointerCapture(e.pointerId);
       redraw();
       return;
     }
@@ -396,45 +426,43 @@
       return;
     }
 
-    if (currentTool === "path" && pathDraft) {
-      hoverPoint = p;
+    if (lineDraft) {
+      if (lineDraft.tool === "path-straight") {
+        lineDraft.points = [lineDraft.points[0], p];
+      } else {
+        const last = lineDraft.points[lineDraft.points.length - 1];
+        if (dist(last, p) >= MIN_FREE_SEGMENT) lineDraft.points.push(p);
+      }
       redraw();
     }
   });
+
+  function finishLineDraft() {
+    if (lineDraft && lineDraft.points.length >= 2) {
+      markers.push({ id: nextId++, type: "path", points: lineDraft.points, style: lineDraft.style });
+    }
+    lineDraft = null;
+    redraw();
+  }
 
   window.addEventListener("pointerup", () => {
-    if (currentTool === "cover" && coverDraft) {
+    if (coverDraft) {
       markers.push({ id: nextId++, type: "cover", x: coverDraft.x, y: coverDraft.y, rotation: coverDraft.angle });
       coverDraft = null;
-      pointerDownInfo = null;
       redraw();
+    }
+    if (lineDraft) {
+      finishLineDraft();
     }
   });
 
-  canvas.addEventListener("dblclick", () => finishPath());
-
-  function finishPath() {
-    if (pathDraft && pathDraft.points.length >= 2) {
-      markers.push({ id: nextId++, type: "path", points: pathDraft.points });
-    }
-    pathDraft = null;
-    hoverPoint = null;
-    redraw();
-  }
-
-  function cancelPath() {
-    pathDraft = null;
-    hoverPoint = null;
-    redraw();
-  }
-
-  document.getElementById("pathFinishBtn").addEventListener("click", finishPath);
-  document.getElementById("pathCancelBtn").addEventListener("click", cancelPath);
-
   window.addEventListener("keydown", (e) => {
-    if (currentTool !== "path") return;
-    if (e.key === "Enter") finishPath();
-    else if (e.key === "Escape") cancelPath();
+    if (e.key !== "Escape") return;
+    if (coverDraft || lineDraft) {
+      coverDraft = null;
+      lineDraft = null;
+      redraw();
+    }
   });
 
   // ---------- undo / clear ----------

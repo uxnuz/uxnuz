@@ -31,10 +31,25 @@
           <canvas class="tool-icon" width="32" height="32" data-icon="grenade"></canvas>
           <span>투척 지점</span>
         </button>
-        <button class="tool-btn" data-tool="path" title="이동 동선">
-          <canvas class="tool-icon" width="32" height="32" data-icon="path"></canvas>
-          <span>이동 동선</span>
-        </button>
+        <div class="tool-group">
+          <div class="tool-group-header">
+            <span>이동 동선</span>
+            <select id="pathStyleSelect" class="style-select">
+              <option value="dashed" selected>점선</option>
+              <option value="solid">실선</option>
+            </select>
+          </div>
+          <div class="tool-subrow">
+            <button class="tool-btn tool-btn-small" data-tool="path-straight" title="직선 이동 동선">
+              <canvas class="tool-icon" width="28" height="28" data-icon="path-straight"></canvas>
+              <span>직선</span>
+            </button>
+            <button class="tool-btn tool-btn-small" data-tool="path-free" title="자유 곡선 이동 동선">
+              <canvas class="tool-icon" width="28" height="28" data-icon="path-free"></canvas>
+              <span>자유선</span>
+            </button>
+          </div>
+        </div>
         <button class="tool-btn" data-tool="enemy" title="적 위치">
           <canvas class="tool-icon" width="32" height="32" data-icon="enemy"></canvas>
           <span>적 위치</span>
@@ -57,23 +72,17 @@
         <button id="clearBtn" class="btn btn-danger">전체 지우기</button>
       </div>
 
-      <div class="hint" id="hint">지도를 먼저 불러와 주세요.</div>
+      <div class="hint" id="hint">지도를 먼저 불러와 주세요. (Ctrl+V로 클립보드 이미지 붙여넣기 가능)</div>
     </aside>
 
     <main class="canvas-area">
       <div class="canvas-wrap" id="canvasWrap">
         <canvas id="mapCanvas"></canvas>
         <div class="empty-state" id="emptyState">
-          <p>상단의 <b>지도 불러오기</b> 버튼으로<br>맵 캡처 이미지를 업로드하세요.</p>
+          <p>상단의 <b>지도 불러오기</b> 버튼으로 이미지를 업로드하거나,<br><b>Ctrl+V</b>로 클립보드에 복사한 이미지를 붙여넣으세요.</p>
         </div>
       </div>
     </main>
-  </div>
-
-  <div class="path-toolbar" id="pathToolbar" hidden>
-    <span>경로 점을 클릭해서 추가하세요 (더블클릭/Enter로 완료, Esc로 취소)</span>
-    <button id="pathFinishBtn" class="btn btn-primary">경로 완료</button>
-    <button id="pathCancelBtn" class="btn">취소</button>
   </div>
 </div>
 
