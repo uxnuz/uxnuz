@@ -105,9 +105,10 @@
     ctx.restore();
   }
 
-  function drawVehicle(ctx, x, y, s) {
+  function drawVehicle(ctx, x, y, s, rotation) {
     ctx.save();
     ctx.translate(x, y);
+    ctx.rotate(rotation || 0);
     const w = s * 0.56, h = s * 0.9;
 
     ctx.fillStyle = "#ffcc00";
@@ -402,6 +403,31 @@
     ctx.restore();
   }
 
+  // dashed throw trajectory from the throw origin to where the smoke/grenade
+  // actually lands, so it's clear where it was thrown from and to.
+  function drawThrowTrail(ctx, from, to, s) {
+    if (dist(from, to) < 1) return;
+    ctx.save();
+    ctx.strokeStyle = "#e8e8e8";
+    ctx.lineWidth = Math.max(1.5, s * 0.08);
+    ctx.lineCap = "round";
+    ctx.setLineDash([s * 0.22, s * 0.2]);
+    ctx.beginPath();
+    ctx.moveTo(from.x, from.y);
+    ctx.lineTo(to.x, to.y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.fillStyle = "#e8e8e8";
+    ctx.strokeStyle = "#333333";
+    ctx.lineWidth = Math.max(1, s * 0.04);
+    ctx.beginPath();
+    ctx.arc(from.x, from.y, s * 0.12, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
+
   function freehandPreviewPoints(cx, cy, s) {
     const pts = [];
     const steps = 10;
@@ -474,14 +500,16 @@
   const mapInput = document.getElementById("mapInput");
   const opacitySlider = document.getElementById("opacitySlider");
   const opacityValue = document.getElementById("opacityValue");
+  const resizeToggle = document.getElementById("resizeToggle");
 
   let mapImage = null;
   let worldWidth = 0;
   let worldHeight = 0;
-  let markers = []; // {id, type, x, y, rotation?, points?, style?, color?}
+  let markers = []; // {id, type, x, y, rotation?, points?, style?, color?, from?, scale?}
   let currentTool = "select";
   let nextId = 1;
   let markerOpacity = 1;
+  let resizeModeEnabled = false;
 
   opacitySlider.addEventListener("input", () => {
     markerOpacity = Number(opacitySlider.value) / 100;
@@ -489,8 +517,13 @@
     redraw();
   });
 
-  let flareDraft = null; // {x, y, angle}
-  let lineDraft = null;  // {tool: 'path-straight'|'path-free', points: [{x,y}], style, color}
+  resizeToggle.addEventListener("change", () => {
+    resizeModeEnabled = resizeToggle.checked;
+  });
+
+  let rotateDraft = null; // {tool: 'flare'|'vehicle', x, y, angle}
+  let throwDraft = null;  // {tool: 'smoke'|'grenade', from: {x,y}, to: {x,y}}
+  let lineDraft = null;   // {tool: 'path-straight'|'path-free'|'fireline', points: [{x,y}], style, color}
 
   // pan / zoom view transform, in CSS-pixel space: screenPx = view{X,Y} + viewScale * worldPx
   let viewScale = 1;
@@ -499,17 +532,16 @@
   const MIN_SCALE = 0.1;
   const MAX_SCALE = 12;
 
-  const POINT_TOOLS = [
-    "smoke", "grenade", "enemy", "vehicle", "rock", "tree",
-    "team1", "team2", "team3", "team4",
-  ];
+  const POINT_TOOLS = ["enemy", "rock", "tree", "team1", "team2", "team3", "team4"];
+  const ROTATE_TOOLS = ["flare", "vehicle"];
+  const THROW_TOOLS = ["smoke", "grenade"];
 
   const HINTS = {
     select: "마커를 클릭하면 삭제됩니다.",
-    smoke: "지도를 클릭해 연막탄 위치를 표시하세요.",
-    grenade: "지도를 클릭해 투척 지점을 표시하세요.",
+    smoke: "클릭한 채로 드래그해서 연막탄을 투척하세요 (뗀 지점에 생성됩니다).",
+    grenade: "클릭한 채로 드래그해서 수류탄을 투척하세요 (뗀 지점에 생성됩니다).",
     enemy: "지도를 클릭해 적 위치를 표시하세요.",
-    vehicle: "지도를 클릭해 차량 위치를 표시하세요.",
+    vehicle: "클릭 후 드래그해 차량 방향을 지정하세요.",
     rock: "지도를 클릭해 바위 위치를 표시하세요.",
     tree: "지도를 클릭해 나무 위치를 표시하세요.",
     flare: "클릭 후 드래그해 신호 방향을 지정하세요.",
@@ -528,7 +560,8 @@
 
   function setTool(tool) {
     currentTool = tool;
-    flareDraft = null;
+    rotateDraft = null;
+    throwDraft = null;
     lineDraft = null;
     document.querySelectorAll(".tool-btn").forEach((b) => {
       b.classList.toggle("active", b.dataset.tool === tool);
@@ -576,10 +609,23 @@
     "wheel",
     (e) => {
       if (!mapImage) return;
-      e.preventDefault();
       const rect = canvas.getBoundingClientRect();
       const mx = e.clientX - rect.left;
       const my = e.clientY - rect.top;
+
+      if (resizeModeEnabled) {
+        const worldP = { x: (mx - viewX) / viewScale, y: (my - viewY) / viewScale };
+        const hovered = pointMarkerAt(worldP);
+        if (hovered) {
+          e.preventDefault();
+          const factor = e.deltaY < 0 ? 1.08 : 1 / 1.08;
+          hovered.scale = Math.min(4, Math.max(0.3, (hovered.scale || 1) * factor));
+          redraw();
+          return;
+        }
+      }
+
+      e.preventDefault();
       const factor = e.deltaY < 0 ? 1.12 : 1 / 1.12;
       const newScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, viewScale * factor));
 
@@ -679,13 +725,25 @@
     targetCtx.save();
     targetCtx.globalAlpha = markerOpacity;
     markers.forEach((m) => {
-      if (m.type === "flare") drawFlare(targetCtx, m.x, m.y, s, m.rotation);
+      const ms = s * (m.scale || 1);
+      if (m.type === "flare") drawFlare(targetCtx, m.x, m.y, ms, m.rotation);
+      else if (m.type === "vehicle") drawVehicle(targetCtx, m.x, m.y, ms, m.rotation);
       else if (m.type === "path") drawPath(targetCtx, m.points, s, m.style, m.color);
       else if (m.type === "fireline") drawFireLine(targetCtx, m.points, s);
-      else if (ICON_DRAW[m.type]) ICON_DRAW[m.type](targetCtx, m.x, m.y, s);
+      else if (m.type === "smoke" || m.type === "grenade") {
+        if (m.from) drawThrowTrail(targetCtx, m.from, { x: m.x, y: m.y }, s);
+        ICON_DRAW[m.type](targetCtx, m.x, m.y, ms);
+      } else if (ICON_DRAW[m.type]) ICON_DRAW[m.type](targetCtx, m.x, m.y, ms);
     });
     if (includeDrafts) {
-      if (flareDraft) drawFlare(targetCtx, flareDraft.x, flareDraft.y, s, flareDraft.angle);
+      if (rotateDraft) {
+        if (rotateDraft.tool === "flare") drawFlare(targetCtx, rotateDraft.x, rotateDraft.y, s, rotateDraft.angle);
+        else if (rotateDraft.tool === "vehicle") drawVehicle(targetCtx, rotateDraft.x, rotateDraft.y, s, rotateDraft.angle);
+      }
+      if (throwDraft) {
+        drawThrowTrail(targetCtx, throwDraft.from, throwDraft.to, s);
+        ICON_DRAW[throwDraft.tool](targetCtx, throwDraft.to.x, throwDraft.to.y, s);
+      }
       if (lineDraft) {
         if (lineDraft.tool === "fireline") drawFireLine(targetCtx, lineDraft.points, s);
         else drawPath(targetCtx, lineDraft.points, s, lineDraft.style, lineDraft.color);
@@ -728,6 +786,10 @@
     return dist(p, { x: a.x + t * (b.x - a.x), y: a.y + t * (b.y - a.y) });
   }
 
+  function pointRadius(m, s) {
+    return s * (m.scale || 1) * 0.75;
+  }
+
   function hitTest(p) {
     const s = markerSize();
     for (let i = markers.length - 1; i >= 0; i--) {
@@ -738,10 +800,21 @@
         }
         if (m.points.length === 1 && dist(p, m.points[0]) < s * 0.6) return i;
       } else {
-        if (dist(p, { x: m.x, y: m.y }) < s * 0.75) return i;
+        if (dist(p, { x: m.x, y: m.y }) < pointRadius(m, s)) return i;
       }
     }
     return -1;
+  }
+
+  // used by scroll-to-resize: only point-shaped markers, never lines
+  function pointMarkerAt(p) {
+    const s = markerSize();
+    for (let i = markers.length - 1; i >= 0; i--) {
+      const m = markers[i];
+      if (m.type === "path" || m.type === "fireline") continue;
+      if (dist(p, { x: m.x, y: m.y }) < pointRadius(m, s)) return m;
+    }
+    return null;
   }
 
   // ---------- drawing-tool interaction ----------
@@ -764,8 +837,15 @@
       return;
     }
 
-    if (currentTool === "flare") {
-      flareDraft = { x: p.x, y: p.y, angle: 0 };
+    if (ROTATE_TOOLS.includes(currentTool)) {
+      rotateDraft = { tool: currentTool, x: p.x, y: p.y, angle: 0 };
+      canvas.setPointerCapture(e.pointerId);
+      redraw();
+      return;
+    }
+
+    if (THROW_TOOLS.includes(currentTool)) {
+      throwDraft = { tool: currentTool, from: p, to: p };
       canvas.setPointerCapture(e.pointerId);
       redraw();
       return;
@@ -791,12 +871,18 @@
     if (!mapImage) return;
     const p = getPos(e);
 
-    if (currentTool === "flare" && flareDraft) {
-      const dx = p.x - flareDraft.x;
-      const dy = p.y - flareDraft.y;
+    if (rotateDraft) {
+      const dx = p.x - rotateDraft.x;
+      const dy = p.y - rotateDraft.y;
       if (Math.hypot(dx, dy) > 3) {
-        flareDraft.angle = Math.atan2(dy, dx) + Math.PI / 2;
+        rotateDraft.angle = Math.atan2(dy, dx) + Math.PI / 2;
       }
+      redraw();
+      return;
+    }
+
+    if (throwDraft) {
+      throwDraft.to = p;
       redraw();
       return;
     }
@@ -831,9 +917,14 @@
   }
 
   window.addEventListener("pointerup", () => {
-    if (flareDraft) {
-      markers.push({ id: nextId++, type: "flare", x: flareDraft.x, y: flareDraft.y, rotation: flareDraft.angle });
-      flareDraft = null;
+    if (rotateDraft) {
+      markers.push({ id: nextId++, type: rotateDraft.tool, x: rotateDraft.x, y: rotateDraft.y, rotation: rotateDraft.angle });
+      rotateDraft = null;
+      redraw();
+    }
+    if (throwDraft) {
+      markers.push({ id: nextId++, type: throwDraft.tool, from: throwDraft.from, x: throwDraft.to.x, y: throwDraft.to.y });
+      throwDraft = null;
       redraw();
     }
     if (lineDraft) {
@@ -864,8 +955,9 @@
       undo();
       return;
     }
-    if (e.key === "Escape" && (flareDraft || lineDraft)) {
-      flareDraft = null;
+    if (e.key === "Escape" && (rotateDraft || throwDraft || lineDraft)) {
+      rotateDraft = null;
+      throwDraft = null;
       lineDraft = null;
       redraw();
     }
