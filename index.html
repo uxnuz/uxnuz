@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>피드백</title>
-<link rel="stylesheet" href="style.css?v=7">
+<link rel="stylesheet" href="style.css?v=8">
 </head>
 <body>
 <div class="app">
@@ -29,6 +29,7 @@
       </div>
 
       <button id="exportBtn" class="btn" disabled>PNG로 내보내기</button>
+      <button id="upscaleBtn" class="btn" disabled title="업로드한 지도를 캔버스로 2배 확대해 다시 그립니다 (실제 해상도 복원은 아님)">2x 업스케일</button>
       <button id="guideBtn" class="btn btn-guide">키 가이드</button>
     </div>
   </header>
@@ -71,6 +72,7 @@
           <ul>
             <li><b>Ctrl + V</b> — 클립보드에 복사한 이미지를 지도로 붙여넣기</li>
             <li><b>투명도 슬라이더</b> — 아이콘/이펙트 투명도 조절 (지도 이미지는 영향 없음)</li>
+            <li><b>2x 업스케일 버튼</b> — 클릭할 때만 지도를 2배로 확대해 다시 그림 (실제 해상도 복원은 아님, 자동 실행 안 됨)</li>
             <li><b>PNG로 내보내기</b> — 현재 확대/이동 상태와 무관하게 전체 지도를 원본 해상도로 저장</li>
           </ul>
         </section>
@@ -190,6 +192,6 @@
   </div>
 </div>
 
-<script src="script.js?v=7"></script>
+<script src="script.js?v=8"></script>
 </body>
 </html>

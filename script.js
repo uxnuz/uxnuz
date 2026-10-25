@@ -505,6 +505,7 @@
   const canvasWrap = document.getElementById("canvasWrap");
   const emptyState = document.getElementById("emptyState");
   const exportBtn = document.getElementById("exportBtn");
+  const upscaleBtn = document.getElementById("upscaleBtn");
   const hint = document.getElementById("hint");
   const pathStyleSelect = document.getElementById("pathStyleSelect");
   const pathColorSelect = document.getElementById("pathColorSelect");
@@ -514,6 +515,7 @@
   const resizeToggle = document.getElementById("resizeToggle");
 
   let mapImage = null;
+  let originalImage = null; // untouched upload, kept at full natural resolution for upscaling
   let worldWidth = 0;
   let worldHeight = 0;
   let markers = []; // {id, type, x, y, rotation?, points?, style?, color?, from?, scale?}
@@ -685,6 +687,7 @@
       const img = new Image();
       img.onload = () => {
         mapImage = img;
+        originalImage = img;
         markers = [];
         const maxW = 4000;
         const scale = img.naturalWidth > maxW ? maxW / img.naturalWidth : 1;
@@ -692,6 +695,7 @@
         worldHeight = Math.round(img.naturalHeight * scale);
         emptyState.style.display = "none";
         exportBtn.disabled = false;
+        upscaleBtn.disabled = false;
         resizeCanvasBuffer();
         fitToView();
         setTool("select");
@@ -983,6 +987,69 @@
       lineDraft = null;
       redraw();
     }
+  });
+
+  // ---------- canvas-based upscale (manual, off by default - only runs on click) ----------
+  // Not real super-resolution: progressively redraws the original upload at a
+  // larger size with high-quality smoothing, which can look a bit less harsh
+  // than one big jump, but it cannot recover detail that was never captured.
+
+  const UPSCALE_MAX_DIM = 8000;
+
+  function renderUpscaledCanvas(source, targetW, targetH) {
+    let w = source.naturalWidth || source.width;
+    let h = source.naturalHeight || source.height;
+    let current = source;
+    while (w < targetW || h < targetH) {
+      const stepW = Math.min(targetW, Math.round(w * 2));
+      const stepH = Math.min(targetH, Math.round(h * 2));
+      const stepCanvas = document.createElement("canvas");
+      stepCanvas.width = stepW;
+      stepCanvas.height = stepH;
+      const sctx = stepCanvas.getContext("2d");
+      sctx.imageSmoothingEnabled = true;
+      sctx.imageSmoothingQuality = "high";
+      sctx.drawImage(current, 0, 0, stepW, stepH);
+      current = stepCanvas;
+      w = stepW;
+      h = stepH;
+    }
+    return current;
+  }
+
+  function rescaleMarkers(sx, sy) {
+    markers.forEach((m) => {
+      if (m.points) m.points = m.points.map((p) => ({ x: p.x * sx, y: p.y * sy }));
+      if (typeof m.x === "number") m.x *= sx;
+      if (typeof m.y === "number") m.y *= sy;
+      if (m.from) m.from = { x: m.from.x * sx, y: m.from.y * sy };
+    });
+  }
+
+  upscaleBtn.addEventListener("click", () => {
+    if (!mapImage || !originalImage) return;
+    if (Math.max(worldWidth, worldHeight) >= UPSCALE_MAX_DIM) {
+      alert("이미 최대 해상도까지 확대되어 더 이상 업스케일할 수 없습니다.");
+      return;
+    }
+    let targetW = worldWidth * 2;
+    let targetH = worldHeight * 2;
+    if (Math.max(targetW, targetH) > UPSCALE_MAX_DIM) {
+      const clamp = UPSCALE_MAX_DIM / Math.max(targetW, targetH);
+      targetW *= clamp;
+      targetH *= clamp;
+    }
+    targetW = Math.round(targetW);
+    targetH = Math.round(targetH);
+
+    const sx = targetW / worldWidth;
+    const sy = targetH / worldHeight;
+    mapImage = renderUpscaledCanvas(originalImage, targetW, targetH);
+    rescaleMarkers(sx, sy);
+    worldWidth = targetW;
+    worldHeight = targetH;
+    fitToView();
+    redraw();
   });
 
   // ---------- export (always full-resolution, independent of current zoom/pan) ----------
