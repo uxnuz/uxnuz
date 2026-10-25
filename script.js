@@ -479,6 +479,25 @@
     }
   });
 
+  // ---------- key guide modal ----------
+
+  const guideBtn = document.getElementById("guideBtn");
+  const guideModal = document.getElementById("guideModal");
+  const guideCloseBtn = document.getElementById("guideCloseBtn");
+
+  function openGuide() {
+    guideModal.hidden = false;
+  }
+  function closeGuide() {
+    guideModal.hidden = true;
+  }
+
+  guideBtn.addEventListener("click", openGuide);
+  guideCloseBtn.addEventListener("click", closeGuide);
+  guideModal.addEventListener("click", (e) => {
+    if (e.target === guideModal) closeGuide();
+  });
+
   // ---------- app state ----------
 
   const canvas = document.getElementById("mapCanvas");
@@ -949,6 +968,10 @@
   });
 
   window.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !guideModal.hidden) {
+      closeGuide();
+      return;
+    }
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
       e.preventDefault();
       undo();

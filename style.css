@@ -7,6 +7,7 @@
   --accent: #e2b13c;
   --accent-text: #1a1406;
   --danger: #c0392b;
+  --orange: #ff8a00;
 }
 
 * { box-sizing: border-box; }
@@ -151,6 +152,92 @@ html, body {
   border-color: #4a2a26;
 }
 .btn-danger:hover { background: rgba(192, 57, 43, 0.15); }
+
+.btn-guide {
+  background: var(--orange);
+  color: #1a0e00;
+  border-color: var(--orange);
+  font-weight: 700;
+}
+.btn-guide:hover { background: #ffa033; }
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 24px;
+}
+
+.modal-panel {
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  max-width: 560px;
+  width: 100%;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--panel-border);
+  flex-shrink: 0;
+}
+
+.modal-header h2 {
+  font-size: 16px;
+  margin: 0;
+}
+
+.modal-body {
+  padding: 16px 18px;
+  overflow-y: auto;
+}
+
+.modal-body section {
+  margin-bottom: 18px;
+}
+
+.modal-body section:last-child {
+  margin-bottom: 0;
+}
+
+.modal-body h3 {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--accent);
+  margin: 0 0 8px;
+}
+
+.modal-body ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.modal-body li {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.modal-body li b {
+  color: var(--orange);
+  font-weight: 700;
+}
 
 .main {
   display: flex;

@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>피드백</title>
-<link rel="stylesheet" href="style.css?v=5">
+<link rel="stylesheet" href="style.css?v=6">
 </head>
 <body>
 <div class="app">
@@ -29,8 +29,54 @@
       </div>
 
       <button id="exportBtn" class="btn" disabled>PNG로 내보내기</button>
+      <button id="guideBtn" class="btn btn-guide">키 가이드</button>
     </div>
   </header>
+
+  <div class="modal-overlay" id="guideModal" hidden>
+    <div class="modal-panel">
+      <div class="modal-header">
+        <h2>키 가이드</h2>
+        <button id="guideCloseBtn" class="btn" title="닫기">닫기</button>
+      </div>
+      <div class="modal-body">
+        <section>
+          <h3>보기 / 탐색</h3>
+          <ul>
+            <li><b>마우스 스크롤</b> — 커서 위치 기준으로 지도 확대/축소</li>
+            <li><b>우클릭 드래그</b> — 화면 이동(패닝)</li>
+            <li><b>Shift + 스크롤</b> (아이콘 위, "Shift+휠 크기조절" 토글 ON) — 그 아이콘만 크기 조절</li>
+          </ul>
+        </section>
+        <section>
+          <h3>표시 추가</h3>
+          <ul>
+            <li><b>클릭</b> — 적 위치 / 바위 / 나무 / 팀원 1~4 배치</li>
+            <li><b>클릭 후 드래그</b> — 연막탄 / 수류탄 투척 (뗀 지점에 생성, 점선으로 투척 경로 표시)</li>
+            <li><b>클릭 후 드래그</b> — 차량 / 긴엄신 방향을 360도로 지정</li>
+            <li><b>클릭한 채로 드래그</b> — 이동 동선(직선/자유선), 사격선 그리기</li>
+          </ul>
+        </section>
+        <section>
+          <h3>편집</h3>
+          <ul>
+            <li><b>Ctrl + Z</b> — 실행취소</li>
+            <li><b>Esc</b> — 그리는 중인 선/방향 지정 취소</li>
+            <li><b>선택/삭제 도구 + 클릭</b> — 마커 삭제</li>
+            <li><b>전체 지우기 버튼</b> — 모든 표시 삭제</li>
+          </ul>
+        </section>
+        <section>
+          <h3>기타</h3>
+          <ul>
+            <li><b>Ctrl + V</b> — 클립보드에 복사한 이미지를 지도로 붙여넣기</li>
+            <li><b>투명도 슬라이더</b> — 아이콘/이펙트 투명도 조절 (지도 이미지는 영향 없음)</li>
+            <li><b>PNG로 내보내기</b> — 현재 확대/이동 상태와 무관하게 전체 지도를 원본 해상도로 저장</li>
+          </ul>
+        </section>
+      </div>
+    </div>
+  </div>
 
   <div class="main">
     <aside class="sidebar">
@@ -144,6 +190,6 @@
   </div>
 </div>
 
-<script src="script.js?v=5"></script>
+<script src="script.js?v=6"></script>
 </body>
 </html>
