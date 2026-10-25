@@ -18,6 +18,10 @@
   }
 
   // ---------- icon drawing (shared by sidebar previews and canvas markers) ----------
+  // All of these draw in "world" coordinates (image pixel space). The view
+  // transform (pan/zoom) is applied once via ctx.setTransform before any of
+  // this runs, so these never need to know the current zoom level - they stay
+  // crisp vector paths at any zoom instead of a stretched bitmap.
 
   function drawSmoke(ctx, x, y, s) {
     ctx.save();
@@ -139,21 +143,11 @@
     ctx.strokeStyle = "#5c0a02";
     ctx.lineWidth = Math.max(1, s * 0.09);
 
-    const r = s * 0.6;
+    const half = s * 0.46;
     ctx.beginPath();
-    ctx.moveTo(0, -r);
-    ctx.lineTo(r * 0.87, r * 0.5);
-    ctx.lineTo(-r * 0.87, r * 0.5);
-    ctx.closePath();
+    ctx.rect(-half, -half, half * 2, half * 2);
     ctx.fill();
     ctx.stroke();
-
-    // exclamation mark
-    ctx.fillStyle = "#fff6e0";
-    ctx.fillRect(-s * 0.06, -r * 0.3, s * 0.12, r * 0.55);
-    ctx.beginPath();
-    ctx.arc(0, r * 0.4, s * 0.08, 0, Math.PI * 2);
-    ctx.fill();
 
     ctx.restore();
   }
@@ -340,6 +334,8 @@
   const mapInput = document.getElementById("mapInput");
 
   let mapImage = null;
+  let worldWidth = 0;
+  let worldHeight = 0;
   let markers = []; // {id, type, x, y, rotation?, points?, style?, color?}
   let currentTool = "select";
   let nextId = 1;
@@ -347,10 +343,12 @@
   let flareDraft = null; // {x, y, angle}
   let lineDraft = null;  // {tool: 'path-straight'|'path-free', points: [{x,y}], style, color}
 
-  // pan / zoom view transform (visual only; marker coordinates stay in canvas pixel space)
+  // pan / zoom view transform, in CSS-pixel space: screenPx = view{X,Y} + viewScale * worldPx
   let viewScale = 1;
   let viewX = 0;
   let viewY = 0;
+  const MIN_SCALE = 0.1;
+  const MAX_SCALE = 12;
 
   const POINT_TOOLS = ["smoke", "grenade", "enemy", "vehicle", "rock", "tree"];
 
@@ -368,7 +366,7 @@
   };
 
   function markerSize() {
-    return Math.max(16, Math.min(canvas.width, canvas.height) * 0.028);
+    return Math.max(16, Math.min(worldWidth, worldHeight) * 0.028);
   }
 
   function setTool(tool) {
@@ -387,36 +385,53 @@
     btn.addEventListener("click", () => setTool(btn.dataset.tool));
   });
 
+  // ---------- canvas buffer sizing (always matches on-screen size * DPR, so
+  // drawing is never a stretched bitmap - this is what keeps zoom crisp) ----------
+
+  function resizeCanvasBuffer() {
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvasWrap.getBoundingClientRect();
+    const w = Math.max(1, Math.round(rect.width * dpr));
+    const h = Math.max(1, Math.round(rect.height * dpr));
+    if (canvas.width !== w || canvas.height !== h) {
+      canvas.width = w;
+      canvas.height = h;
+    }
+  }
+
+  function fitToView() {
+    const rect = canvasWrap.getBoundingClientRect();
+    const scale = Math.min(rect.width / worldWidth, rect.height / worldHeight, 1) || 1;
+    viewScale = scale;
+    viewX = (rect.width - worldWidth * scale) / 2;
+    viewY = (rect.height - worldHeight * scale) / 2;
+  }
+
+  const resizeObserver = new ResizeObserver(() => {
+    resizeCanvasBuffer();
+    redraw();
+  });
+  resizeObserver.observe(canvasWrap);
+
   // ---------- view transform (zoom / pan) ----------
 
-  function applyViewTransform() {
-    canvas.style.transform = `translate(${viewX}px, ${viewY}px) scale(${viewScale})`;
-  }
-
-  function resetViewTransform() {
-    viewScale = 1;
-    viewX = 0;
-    viewY = 0;
-    applyViewTransform();
-  }
-
-  canvasWrap.addEventListener(
+  canvas.addEventListener(
     "wheel",
     (e) => {
       if (!mapImage) return;
       e.preventDefault();
-      const wrapRect = canvasWrap.getBoundingClientRect();
-      const mx = e.clientX - wrapRect.left;
-      const my = e.clientY - wrapRect.top;
+      const rect = canvas.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
       const factor = e.deltaY < 0 ? 1.12 : 1 / 1.12;
-      const newScale = Math.min(8, Math.max(0.3, viewScale * factor));
+      const newScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, viewScale * factor));
 
-      const localX = (mx - viewX) / viewScale;
-      const localY = (my - viewY) / viewScale;
-      viewX = mx - localX * newScale;
-      viewY = my - localY * newScale;
+      const worldX = (mx - viewX) / viewScale;
+      const worldY = (my - viewY) / viewScale;
+      viewX = mx - worldX * newScale;
+      viewY = my - worldY * newScale;
       viewScale = newScale;
-      applyViewTransform();
+      redraw();
     },
     { passive: false }
   );
@@ -436,7 +451,7 @@
     if (panState) {
       viewX = panState.viewX + (e.clientX - panState.startX);
       viewY = panState.viewY + (e.clientY - panState.startY);
-      applyViewTransform();
+      redraw();
     }
   });
 
@@ -457,13 +472,14 @@
       img.onload = () => {
         mapImage = img;
         markers = [];
-        const maxW = 2200;
+        const maxW = 4000;
         const scale = img.naturalWidth > maxW ? maxW / img.naturalWidth : 1;
-        canvas.width = Math.round(img.naturalWidth * scale);
-        canvas.height = Math.round(img.naturalHeight * scale);
+        worldWidth = Math.round(img.naturalWidth * scale);
+        worldHeight = Math.round(img.naturalHeight * scale);
         emptyState.style.display = "none";
         exportBtn.disabled = false;
-        resetViewTransform();
+        resizeCanvasBuffer();
+        fitToView();
         setTool("select");
         redraw();
       };
@@ -494,37 +510,43 @@
   });
 
   // ---------- rendering ----------
+  // drawSceneContent draws everything in plain world coordinates with no
+  // knowledge of zoom/pan - the caller sets up the transform (or uses the
+  // identity transform, as the PNG export does).
+
+  function drawSceneContent(targetCtx, includeDrafts) {
+    targetCtx.drawImage(mapImage, 0, 0, worldWidth, worldHeight);
+    const s = markerSize();
+    markers.forEach((m) => {
+      if (m.type === "flare") drawFlare(targetCtx, m.x, m.y, s, m.rotation);
+      else if (m.type === "path") drawPath(targetCtx, m.points, s, m.style, m.color);
+      else if (ICON_DRAW[m.type]) ICON_DRAW[m.type](targetCtx, m.x, m.y, s);
+    });
+    if (includeDrafts) {
+      if (flareDraft) drawFlare(targetCtx, flareDraft.x, flareDraft.y, s, flareDraft.angle);
+      if (lineDraft) drawPath(targetCtx, lineDraft.points, s, lineDraft.style, lineDraft.color);
+    }
+  }
 
   function redraw() {
     if (!mapImage) return;
+    const dpr = window.devicePixelRatio || 1;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(mapImage, 0, 0, canvas.width, canvas.height);
-
-    const s = markerSize();
-    markers.forEach((m) => {
-      if (m.type === "flare") drawFlare(ctx, m.x, m.y, s, m.rotation);
-      else if (m.type === "path") drawPath(ctx, m.points, s, m.style, m.color);
-      else if (ICON_DRAW[m.type]) ICON_DRAW[m.type](ctx, m.x, m.y, s);
-    });
-
-    if (flareDraft) {
-      drawFlare(ctx, flareDraft.x, flareDraft.y, s, flareDraft.angle);
-    }
-
-    if (lineDraft) {
-      drawPath(ctx, lineDraft.points, s, lineDraft.style, lineDraft.color);
-    }
+    ctx.setTransform(viewScale * dpr, 0, 0, viewScale * dpr, viewX * dpr, viewY * dpr);
+    drawSceneContent(ctx, true);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
   }
 
   // ---------- coordinate helpers ----------
 
   function getPos(evt) {
     const rect = canvas.getBoundingClientRect();
-    const scaleX = canvas.width / rect.width;
-    const scaleY = canvas.height / rect.height;
+    const cssX = evt.clientX - rect.left;
+    const cssY = evt.clientY - rect.top;
     return {
-      x: (evt.clientX - rect.left) * scaleX,
-      y: (evt.clientY - rect.top) * scaleY,
+      x: (cssX - viewX) / viewScale,
+      y: (cssY - viewY) / viewScale,
     };
   }
 
@@ -559,7 +581,7 @@
   // ---------- drawing-tool interaction ----------
 
   const LINE_TOOLS = ["path-straight", "path-free"];
-  const MIN_FREE_SEGMENT = 3; // px in canvas space, keeps freehand point count sane
+  const MIN_FREE_SEGMENT = 3; // world px, keeps freehand point count sane
 
   canvas.addEventListener("pointerdown", (e) => {
     if (e.button !== 0) return; // right/middle click reserved for panning
@@ -680,16 +702,20 @@
     }
   });
 
-  // ---------- export ----------
+  // ---------- export (always full-resolution, independent of current zoom/pan) ----------
 
   exportBtn.addEventListener("click", () => {
     if (!mapImage) return;
+    const out = document.createElement("canvas");
+    out.width = worldWidth;
+    out.height = worldHeight;
+    drawSceneContent(out.getContext("2d"), false);
     const link = document.createElement("a");
     link.download = "pubg-feedback-map.png";
-    link.href = canvas.toDataURL("image/png");
+    link.href = out.toDataURL("image/png");
     link.click();
   });
 
-  applyViewTransform();
+  resizeCanvasBuffer();
   setTool("select");
 })();

@@ -209,27 +209,24 @@ html, body {
 .canvas-area {
   flex: 1;
   overflow: hidden;
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding: 20px;
   position: relative;
 }
 
 .canvas-wrap {
-  position: relative;
-  max-width: 100%;
+  position: absolute;
+  inset: 16px;
 }
 
 #mapCanvas {
+  position: absolute;
+  inset: 0;
   display: block;
-  max-width: 100%;
-  height: auto;
+  width: 100%;
+  height: 100%;
   background: #1a1d24;
   border: 1px solid var(--panel-border);
   border-radius: 4px;
   cursor: crosshair;
-  transform-origin: 0 0;
   touch-action: none;
 }
 
@@ -246,8 +243,6 @@ html, body {
   font-size: 14px;
   border: 1px dashed var(--panel-border);
   border-radius: 6px;
-  min-width: 420px;
-  min-height: 280px;
 }
 
 @media (max-width: 720px) {
