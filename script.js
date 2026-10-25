@@ -214,35 +214,7 @@
     green: "#19c23e",
   };
 
-  function drawMuzzleFlash(ctx, x, y, s) {
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.fillStyle = "#ffffff";
-    ctx.strokeStyle = "#000000";
-    ctx.lineCap = "round";
-
-    const spikes = 6;
-    const inner = s * 0.2;
-    const outer = s * 0.5;
-    ctx.lineWidth = Math.max(2, s * 0.1);
-    for (let i = 0; i < spikes; i++) {
-      const ang = (i / spikes) * Math.PI * 2;
-      ctx.beginPath();
-      ctx.moveTo(Math.cos(ang) * inner, Math.sin(ang) * inner);
-      ctx.lineTo(Math.cos(ang) * outer, Math.sin(ang) * outer);
-      ctx.stroke();
-    }
-
-    ctx.beginPath();
-    ctx.arc(0, 0, s * 0.18, 0, Math.PI * 2);
-    ctx.lineWidth = Math.max(2, s * 0.09);
-    ctx.fill();
-    ctx.stroke();
-    ctx.restore();
-  }
-
-  // jagged debris burst for the impact point - deliberately more irregular
-  // than the muzzle flash so the two ends read as distinct effects.
+  // jagged debris burst for the impact point
   function drawImpactBurst(ctx, x, y, s) {
     ctx.save();
     ctx.translate(x, y);
@@ -291,14 +263,13 @@
   }
 
   // high-visibility straight line for "who is shooting whom": thick black
-  // outline under a white line, a muzzle-flash burst at the firing point,
-  // and a debris burst at the impact point.
-  function drawFireLine(ctx, points, s) {
-    if (!points || points.length < 2) {
-      if (points && points.length === 1) drawMuzzleFlash(ctx, points[0].x, points[0].y, s);
-      return;
-    }
-    const p0 = points[0];
+  // outline under a white line, and a debris burst at the impact point.
+  // strokeScale compensates for the current map zoom so the line itself
+  // always looks the same thickness on screen; the impact burst is a
+  // regular resizable icon (scale) and zooms with the map like any other.
+  function drawFireLine(ctx, points, s, scale, strokeScale) {
+    if (!points || points.length < 2) return;
+    const ss = strokeScale || 1;
     const pN = points[points.length - 1];
 
     ctx.save();
@@ -309,14 +280,13 @@
     ctx.moveTo(points[0].x, points[0].y);
     for (let i = 1; i < points.length; i++) ctx.lineTo(points[i].x, points[i].y);
     ctx.strokeStyle = "#000000";
-    ctx.lineWidth = Math.max(4, s * 0.28);
+    ctx.lineWidth = Math.max(4, s * 0.28) / ss;
     ctx.stroke();
     ctx.strokeStyle = "#ffffff";
-    ctx.lineWidth = Math.max(2, s * 0.14);
+    ctx.lineWidth = Math.max(2, s * 0.14) / ss;
     ctx.stroke();
 
-    drawMuzzleFlash(ctx, p0.x, p0.y, s);
-    drawImpactBurst(ctx, pN.x, pN.y, s);
+    drawImpactBurst(ctx, pN.x, pN.y, s * (scale || 1));
 
     ctx.restore();
   }
@@ -348,14 +318,18 @@
     ctx.restore();
   }
 
-  function drawPath(ctx, points, s, style, color) {
+  // strokeScale compensates for the current map zoom so the line, its dash
+  // pattern, the start dot, and the arrowhead always look the same size on
+  // screen regardless of zoom level (defaults to 1 for export/previews).
+  function drawPath(ctx, points, s, style, color, strokeScale) {
+    const ss = strokeScale || 1;
     const strokeColor = PATH_COLORS[color] || PATH_COLORS.blue;
     if (!points || points.length < 2) {
       if (points && points.length === 1) {
         ctx.save();
         ctx.fillStyle = strokeColor;
         ctx.beginPath();
-        ctx.arc(points[0].x, points[0].y, s * 0.18, 0, Math.PI * 2);
+        ctx.arc(points[0].x, points[0].y, (s * 0.18) / ss, 0, Math.PI * 2);
         ctx.fill();
         ctx.restore();
       }
@@ -363,11 +337,11 @@
     }
     ctx.save();
     ctx.strokeStyle = strokeColor;
-    ctx.lineWidth = Math.max(2, s * 0.15);
+    ctx.lineWidth = Math.max(2, s * 0.15) / ss;
     ctx.lineJoin = "round";
     ctx.lineCap = "round";
     if (style === "solid") ctx.setLineDash([]);
-    else ctx.setLineDash([s * 0.35, s * 0.3]);
+    else ctx.setLineDash([(s * 0.35) / ss, (s * 0.3) / ss]);
 
     ctx.beginPath();
     ctx.moveTo(points[0].x, points[0].y);
@@ -380,14 +354,14 @@
     // start dot
     ctx.fillStyle = strokeColor;
     ctx.beginPath();
-    ctx.arc(points[0].x, points[0].y, s * 0.16, 0, Math.PI * 2);
+    ctx.arc(points[0].x, points[0].y, (s * 0.16) / ss, 0, Math.PI * 2);
     ctx.fill();
 
     // arrowhead at end
     const p1 = points[points.length - 2];
     const p2 = points[points.length - 1];
     const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
-    const headLen = s * 0.5;
+    const headLen = (s * 0.5) / ss;
     ctx.beginPath();
     ctx.moveTo(p2.x, p2.y);
     ctx.lineTo(
@@ -405,13 +379,14 @@
 
   // dashed throw trajectory from the throw origin to where the smoke/grenade
   // actually lands, so it's clear where it was thrown from and to.
-  function drawThrowTrail(ctx, from, to, s) {
+  function drawThrowTrail(ctx, from, to, s, strokeScale) {
     if (dist(from, to) < 1) return;
+    const ss = strokeScale || 1;
     ctx.save();
     ctx.strokeStyle = "#e8e8e8";
-    ctx.lineWidth = Math.max(1.5, s * 0.08);
+    ctx.lineWidth = Math.max(1.5, s * 0.08) / ss;
     ctx.lineCap = "round";
-    ctx.setLineDash([s * 0.22, s * 0.2]);
+    ctx.setLineDash([(s * 0.22) / ss, (s * 0.2) / ss]);
     ctx.beginPath();
     ctx.moveTo(from.x, from.y);
     ctx.lineTo(to.x, to.y);
@@ -420,9 +395,9 @@
 
     ctx.fillStyle = "#e8e8e8";
     ctx.strokeStyle = "#333333";
-    ctx.lineWidth = Math.max(1, s * 0.04);
+    ctx.lineWidth = Math.max(1, s * 0.04) / ss;
     ctx.beginPath();
-    ctx.arc(from.x, from.y, s * 0.12, 0, Math.PI * 2);
+    ctx.arc(from.x, from.y, (s * 0.12) / ss, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
     ctx.restore();
@@ -717,7 +692,8 @@
   // knowledge of zoom/pan - the caller sets up the transform (or uses the
   // identity transform, as the PNG export does).
 
-  function drawSceneContent(targetCtx, includeDrafts) {
+  function drawSceneContent(targetCtx, includeDrafts, strokeScale) {
+    const ss = strokeScale || 1;
     targetCtx.globalAlpha = 1;
     targetCtx.drawImage(mapImage, 0, 0, worldWidth, worldHeight);
     const s = markerSize();
@@ -728,10 +704,10 @@
       const ms = s * (m.scale || 1);
       if (m.type === "flare") drawFlare(targetCtx, m.x, m.y, ms, m.rotation);
       else if (m.type === "vehicle") drawVehicle(targetCtx, m.x, m.y, ms, m.rotation);
-      else if (m.type === "path") drawPath(targetCtx, m.points, s, m.style, m.color);
-      else if (m.type === "fireline") drawFireLine(targetCtx, m.points, s);
+      else if (m.type === "path") drawPath(targetCtx, m.points, s, m.style, m.color, ss);
+      else if (m.type === "fireline") drawFireLine(targetCtx, m.points, s, m.scale, ss);
       else if (m.type === "smoke" || m.type === "grenade") {
-        if (m.from) drawThrowTrail(targetCtx, m.from, { x: m.x, y: m.y }, s);
+        if (m.from) drawThrowTrail(targetCtx, m.from, { x: m.x, y: m.y }, s, ss);
         ICON_DRAW[m.type](targetCtx, m.x, m.y, ms);
       } else if (ICON_DRAW[m.type]) ICON_DRAW[m.type](targetCtx, m.x, m.y, ms);
     });
@@ -741,12 +717,12 @@
         else if (rotateDraft.tool === "vehicle") drawVehicle(targetCtx, rotateDraft.x, rotateDraft.y, s, rotateDraft.angle);
       }
       if (throwDraft) {
-        drawThrowTrail(targetCtx, throwDraft.from, throwDraft.to, s);
+        drawThrowTrail(targetCtx, throwDraft.from, throwDraft.to, s, ss);
         ICON_DRAW[throwDraft.tool](targetCtx, throwDraft.to.x, throwDraft.to.y, s);
       }
       if (lineDraft) {
-        if (lineDraft.tool === "fireline") drawFireLine(targetCtx, lineDraft.points, s);
-        else drawPath(targetCtx, lineDraft.points, s, lineDraft.style, lineDraft.color);
+        if (lineDraft.tool === "fireline") drawFireLine(targetCtx, lineDraft.points, s, null, ss);
+        else drawPath(targetCtx, lineDraft.points, s, lineDraft.style, lineDraft.color, ss);
       }
     }
     targetCtx.restore();
@@ -758,7 +734,7 @@
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.setTransform(viewScale * dpr, 0, 0, viewScale * dpr, viewX * dpr, viewY * dpr);
-    drawSceneContent(ctx, true);
+    drawSceneContent(ctx, true, viewScale);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
   }
 
@@ -811,7 +787,13 @@
     const s = markerSize();
     for (let i = markers.length - 1; i >= 0; i--) {
       const m = markers[i];
-      if (m.type === "path" || m.type === "fireline") continue;
+      if (m.type === "path") continue;
+      if (m.type === "fireline") {
+        // only the impact-point icon is resizable, not the line itself
+        const end = m.points[m.points.length - 1];
+        if (dist(p, end) < pointRadius(m, s)) return m;
+        continue;
+      }
       if (dist(p, { x: m.x, y: m.y }) < pointRadius(m, s)) return m;
     }
     return null;
