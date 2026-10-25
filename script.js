@@ -318,6 +318,26 @@
     ctx.restore();
   }
 
+  // smooths a raw point list (e.g. freehand mouse samples) into quadratic
+  // curve segments through each pair's midpoint, so dashed lines flow
+  // naturally instead of kinking at every tiny mouse-jitter vertex.
+  function tracePolylineSmooth(ctx, points) {
+    ctx.moveTo(points[0].x, points[0].y);
+    if (points.length === 2) {
+      ctx.lineTo(points[1].x, points[1].y);
+      return;
+    }
+    for (let i = 1; i < points.length - 1; i++) {
+      const cur = points[i];
+      const next = points[i + 1];
+      const midX = (cur.x + next.x) / 2;
+      const midY = (cur.y + next.y) / 2;
+      ctx.quadraticCurveTo(cur.x, cur.y, midX, midY);
+    }
+    const last = points[points.length - 1];
+    ctx.lineTo(last.x, last.y);
+  }
+
   // strokeScale compensates for the current map zoom so the line, its dash
   // pattern, the start dot, and the arrowhead always look the same size on
   // screen regardless of zoom level (defaults to 1 for export/previews).
@@ -344,10 +364,7 @@
     else ctx.setLineDash([(s * 0.35) / ss, (s * 0.3) / ss]);
 
     ctx.beginPath();
-    ctx.moveTo(points[0].x, points[0].y);
-    for (let i = 1; i < points.length; i++) {
-      ctx.lineTo(points[i].x, points[i].y);
-    }
+    tracePolylineSmooth(ctx, points);
     ctx.stroke();
     ctx.setLineDash([]);
 
@@ -588,7 +605,7 @@
       const mx = e.clientX - rect.left;
       const my = e.clientY - rect.top;
 
-      if (resizeModeEnabled) {
+      if (resizeModeEnabled && e.shiftKey) {
         const worldP = { x: (mx - viewX) / viewScale, y: (my - viewY) / viewScale };
         const hovered = pointMarkerAt(worldP);
         if (hovered) {
